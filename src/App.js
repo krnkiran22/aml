@@ -7,14 +7,17 @@ const App = () => {
     const [riskLevel, setRiskLevel] = useState("Calculating...");
     const [varianceRisk, setVarianceRisk] = useState("Calculating...");
     const [timeGapConsistency, setTimeGapConsistency] = useState("Calculating...");
-
+    const [address, setAddress] = useState("");
+    const [inputAddress, setInputAddress] = useState("");
     const ALCHEMY_API_KEY = "gQ3YwPsTCsqwjr1ocrnONX63jiNZKkVT";
-    const address = "0x1C3d727cD61Dab2A6f797EF22307044E9E035F0c";
+    // const address = "0xC95380dc0277Ac927dB290234ff66880C4cdda8c";
 
     const alchemyUrl = `https://eth-mainnet.alchemyapi.io/v2/${ALCHEMY_API_KEY}`;
     const coingeckoUrl = "https://api.coingecko.com/api/v3/simple/price";
 
     useEffect(() => {
+      if (!address) return;
+      
         const fetchTransactions = async () => {
             try {
                 const response = await axios.post(alchemyUrl, {
@@ -39,7 +42,7 @@ const App = () => {
         };
 
         fetchTransactions();
-    }, []);
+    }, [address]);
 
     const processTransactions = async (transfers) => {
         const txCountsByDay = {};
@@ -189,38 +192,45 @@ const App = () => {
   
 
     return (
-        <div>
-            <h2>Transaction History</h2>
-            <p><strong>Transaction Frequency Risk:</strong> {riskLevel}</p>
-            <p><strong>Transaction Amount Variance Risk:</strong> {varianceRisk}</p>
-            <p><strong>Time Gap Consistency:</strong> {timeGapConsistency}</p>
-            {loading ? <p>Loading...</p> : (
-                <table border="1">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Transaction Hash</th>
-                            <th>From</th>
-                            <th>To</th>
-                            <th>Value (USD)</th>
-                            <th>Asset</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {transactions.map((tx, index) => (
-                            <tr key={index}>
-                                <td>{new Date(tx.metadata.blockTimestamp).toISOString().split("T")[0]}</td>
-                                <td>{tx.hash.slice(0, 10)}...</td>
-                                <td>{tx.from}</td>
-                                <td>{tx.to}</td>
-                                <td>${tx.usdValue.toFixed(2)}</td>
-                                <td>{tx.asset}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            )}
-        </div>
+      <div>
+      <h2>Transaction History</h2>
+      <input 
+                type="text" 
+                placeholder="Enter wallet address" 
+                value={inputAddress} 
+                onChange={(e) => setInputAddress(e.target.value)} 
+            />
+      <button onClick={() => setAddress(inputAddress)}>Fetch Transactions</button>
+      <p><strong>Transaction Frequency Risk:</strong> {riskLevel}</p>
+      <p><strong>Transaction Amount Variance Risk:</strong> {varianceRisk}</p>
+      <p><strong>Time Gap Consistency:</strong> {timeGapConsistency}</p>
+      {loading ? <p>Loading...</p> : (
+          <table border="1">
+              <thead>
+                  <tr>
+                      <th>Date</th>
+                      <th>Transaction Hash</th>
+                      <th>From</th>
+                      <th>To</th>
+                      <th>Value (USD)</th>
+                      <th>Asset</th>
+                  </tr>
+              </thead>
+              <tbody>
+                  {transactions.map((tx, index) => (
+                      <tr key={index}>
+                          <td>{tx.metadata?.blockTimestamp ? new Date(tx.metadata.blockTimestamp).toISOString().split("T")[0] : "N/A"}</td>
+                          <td>{tx.hash.slice(0, 10)}...</td>
+                          <td>{tx.from}</td>
+                          <td>{tx.to}</td>
+                          <td>${tx.usdValue?.toFixed(2) || "0.00"}</td>
+                          <td>{tx.asset || "Unknown"}</td>
+                      </tr>
+                  ))}
+              </tbody>
+          </table>
+      )}
+  </div>
     );
 };
 
