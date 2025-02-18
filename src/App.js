@@ -7,6 +7,9 @@ const App = () => {
     const [riskLevel, setRiskLevel] = useState("Calculating...");
     const [varianceRisk, setVarianceRisk] = useState("Calculating...");
     const [timeGapConsistency, setTimeGapConsistency] = useState("Calculating...");
+    const [directionRisk, setDirectionRisk] = useState("Calculating...");
+    const [crossWalletRisk, setCrossWalletRisk] = useState("Calculating...");
+    const [circularRisk, setCircularRisk] = useState("Calculating...");
     const [address, setAddress] = useState("");
     const [inputAddress, setInputAddress] = useState("");
     const ALCHEMY_API_KEY = "gQ3YwPsTCsqwjr1ocrnONX63jiNZKkVT";
@@ -104,6 +107,9 @@ const App = () => {
         calculateRiskLevel(txCountsByDay);
         calculateVarianceRisk(stableValues);
         analyzeTimeGapConsistency(updatedTransactions);
+        analyzeTransactionDirection(updatedTransactions);
+        analyzeCrossWalletBehavior(updatedTransactions);
+        analyzeCircularTransactionVolume(updatedTransactions);
     };
 
     const fetchExchangeRates = async (assets) => {
@@ -189,7 +195,93 @@ const App = () => {
           setTimeGapConsistency("Low Risk ✅");
       }
   };
+  const analyzeTransactionDirection = (transactions) => {
+    const txMap = new Map();
+    transactions.forEach(tx => {
+        const key = `${tx.from}_${tx.to}`;
+        if (!txMap.has(key)) txMap.set(key, []);
+        txMap.get(key).push(tx.metadata.blockTimestamp);
+    });
+    
+    let loopCount = 0, backAndForthCount = 0;
+    for (let [key, timestamps] of txMap.entries()) {
+        const [from, to] = key.split("_");
+        const reverseKey = `${to}_${from}`;
+        if (txMap.has(reverseKey)) {
+            timestamps.sort((a, b) => a - b);
+            const reverseTimestamps = txMap.get(reverseKey).sort((a, b) => a - b);
+            
+            timestamps.forEach(ts => {
+                if (reverseTimestamps.some(rt => Math.abs(rt - ts) <= 24 * 60 * 60 * 1000)) {
+                    loopCount++;
+                } else {
+                    backAndForthCount++;
+                }
+            });
+        }
+    }
+    
+    const totalPairs = txMap.size;
+    if (loopCount / totalPairs >= 0.5) setDirectionRisk("High Risk 🚨");
+    else if (backAndForthCount / totalPairs >= 0.3) setDirectionRisk("Medium Risk ⚠️");
+    else setDirectionRisk("Low Risk ✅");
+};
   
+const analyzeCrossWalletBehavior = (transactions) => {
+    const interactionMap = new Map();
+    transactions.forEach(tx => {
+        if (!interactionMap.has(tx.to)) {
+            interactionMap.set(tx.to, new Set());
+        }
+        interactionMap.get(tx.to).add(tx.from);
+    });
+    
+    let highRiskCount = 0, mediumRiskCount = 0, lowRiskCount = 0;
+    interactionMap.forEach((senders, receiver) => {
+        const senderCount = senders.size;
+        if (senderCount > 10) highRiskCount++;
+        else if (senderCount > 3) mediumRiskCount++;
+        else lowRiskCount++;
+    });
+    
+    if (highRiskCount > mediumRiskCount && highRiskCount > lowRiskCount) {
+        setCrossWalletRisk("High Risk 🚨");
+    } else if (mediumRiskCount > lowRiskCount) {
+        setCrossWalletRisk("Medium Risk ⚠️");
+    } else {
+        setCrossWalletRisk("Low Risk ✅");
+    }
+};
+
+const analyzeCircularTransactionVolume = (transactions) => {
+    let totalSent = 0, totalReturned = 0;
+    const sentMap = new Map();
+
+    transactions.forEach(tx => {
+        if (!sentMap.has(tx.from)) {
+            sentMap.set(tx.from, 0);
+        }
+        sentMap.set(tx.from, sentMap.get(tx.from) + tx.usdValue);
+    });
+
+    transactions.forEach(tx => {
+        if (sentMap.has(tx.to)) {
+            totalReturned += tx.usdValue;
+        }
+        totalSent += tx.usdValue;
+    });
+
+    const returnPercentage = (totalReturned / totalSent) * 100;
+    
+    if (returnPercentage > 70) {
+        setCircularRisk("High Risk 🚨");
+    } else if (returnPercentage > 30) {
+        setCircularRisk("Medium Risk ⚠️");
+    } else {
+        setCircularRisk("Low Risk ✅");
+    }
+};
+
 
     return (
       <div>
@@ -204,6 +296,9 @@ const App = () => {
       <p><strong>Transaction Frequency Risk:</strong> {riskLevel}</p>
       <p><strong>Transaction Amount Variance Risk:</strong> {varianceRisk}</p>
       <p><strong>Time Gap Consistency:</strong> {timeGapConsistency}</p>
+      <p><strong>Transaction Direction Risk:</strong> {directionRisk}</p>
+      <p><strong>Cross-Wallet Behavior Risk:</strong> {crossWalletRisk}</p>
+      <p><strong>Circular Transaction Volume Risk:</strong> {circularRisk}</p>
       {loading ? <p>Loading...</p> : (
           <table border="1">
               <thead>
